@@ -1,9 +1,11 @@
 import { Entity } from 'engine/Entity.js';
 import { drawFrameOrigin } from 'engine/context.js';
 import * as control from 'engine/inputHandler.js';
+import { CollisionTile, collisionMap } from 'game/constants/LevelData.js';
 import { BombermanStateType, WALK_SPEED, animations, frames } from 'game/constants/bomberman.js';
-import { Direction } from 'game/constants/entities.js';
-import { FRAME_TIME, HALF_TILE_SIZE, TILE_SIZE } from 'game/constants/game.js';
+import { CounterDirectionLookup, Direction, MovementLook } from 'game/constants/entities.js';
+import { DEBUG, FRAME_TIME, HALF_TILE_SIZE, TILE_SIZE } from 'game/constants/game.js';
+import { drawBox, drawCross } from 'game/utils/debug.js';
 import { isZero } from 'game/utils/utils.js';
 
 export class Bomberman extends Entity {
@@ -11,9 +13,10 @@ export class Bomberman extends Entity {
 
   id = 0;
   direction = Direction.DOWN;
-  baseSpeedTime = 1.2;
-  speedMultiplier = 1;
+  baseSpeedTime = WALK_SPEED;
+  speedMultiplier = 1.2;
   animation = animations.moveAnimations[this.direction];
+  collisionMap = [...collisionMap];
 
   constructor(position, time) {
     super({
@@ -45,15 +48,73 @@ export class Bomberman extends Entity {
     this.currentState.init(time);
   };
 
+  getCollisionTile(tile) {
+    return this.collisionMap[tile.row][tile.column];
+  }
+
+  getCollisionCoords(direction) {
+    switch (direction) {
+      case Direction.UP:
+        return [
+          { row: Math.floor((this.position.y - 9) / TILE_SIZE), column: Math.floor((this.position.x - 8) / TILE_SIZE) },
+          { row: Math.floor((this.position.y - 9) / TILE_SIZE), column: Math.floor((this.position.x + 7) / TILE_SIZE) },
+        ];
+      case Direction.LEFT:
+        return [
+          { row: Math.floor((this.position.y - 8) / TILE_SIZE), column: Math.floor((this.position.x - 9) / TILE_SIZE) },
+          { row: Math.floor((this.position.y + 7) / TILE_SIZE), column: Math.floor((this.position.x - 9) / TILE_SIZE) },
+        ];
+      case Direction.RIGHT:
+        return [
+          { row: Math.floor((this.position.y - 8) / TILE_SIZE), column: Math.floor((this.position.x + 8) / TILE_SIZE) },
+          { row: Math.floor((this.position.y + 7) / TILE_SIZE), column: Math.floor((this.position.x + 8) / TILE_SIZE) },
+        ];
+      case Direction.DOWN:
+        return [
+          { row: Math.floor((this.position.y + 8) / TILE_SIZE), column: Math.floor((this.position.x - 8) / TILE_SIZE) },
+          { row: Math.floor((this.position.y + 8) / TILE_SIZE), column: Math.floor((this.position.x + 7) / TILE_SIZE) },
+        ];
+    }
+  }
+
+  shouldBlockMovement(tileCoords) {
+    const tileCoordsMatch = tileCoords[0].column === tileCoords[1].column && tileCoords[0].row === tileCoords[1].row;
+    const collisionTiles = [this.getCollisionCoords(tileCoords[0], this.getCollisionCoords(tileCoords[1]))];
+
+    if (
+      (tileCoordsMatch && collisionTiles[0] >= CollisionTile.WALL)
+      || (collisionTiles[0] >= CollisionTile.WALL && collisionTiles[1] >= CollisionTile.WALL)
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  performWallCheck(direction) {
+    const collisionCoords = this.getCollisionCoords(direction);
+
+    if (this.shouldBlockMovement(collisionCoords)) return [this.direction, { x: 0, y: 0 }]
+
+    const CounterDirections = CounterDirectionLookup[direction];
+    if (this.getCollisionTile(collisionCoords[0]) >= CollisionTile.WALL) {
+      return [CounterDirections[0], { ...MovementLook[CounterDirections[0]] }];
+    }
+    if (this.getCollisionTile(collisionCoords[1]) >= CollisionTile.WALL) {
+      return [CounterDirections[1], { ...MovementLook[CounterDirections[1]] }];
+    }
+
+    return [direction, { ...MovementLook[direction] }];
+  }
+
   getMovement() {
     if (control.isLeft(this.id)) {
-      return [Direction.LEFT, { x: -WALK_SPEED, y: 0 }];
+      return this.performWallCheck(Direction.LEFT);
     } else if (control.isRight(this.id)) {
-      return [Direction.RIGHT, { x: WALK_SPEED, y: 0 }];
+      return this.performWallCheck(Direction.RIGHT);
     } else if (control.isDown(this.id)) {
-      return [Direction.DOWN, { x: 0, y: WALK_SPEED }];
+      return this.performWallCheck(Direction.DOWN);
     } else if (control.isUp(this.id)) {
-      return [Direction.UP, { x: 0, y: -WALK_SPEED }];
+      return this.performWallCheck(Direction.UP);
     }
     return [this.direction, { x: 0, y: 0 }];
   }
@@ -119,5 +180,12 @@ export class Bomberman extends Entity {
       Math.floor(this.position.y - camera.position.y),
       [this.direction === Direction.RIGHT ? -1 : 1, 1],
     );
+
+    if (!DEBUG) return;
+
+    drawBox(context, camera, [
+      this.position.x - HALF_TILE_SIZE, this.position.y - HALF_TILE_SIZE, TILE_SIZE - 1, TILE_SIZE - 1,
+    ], '#FFFF00');
+    drawCross(context, camera, { x: this.position.x, y: this.position.y }, '#FFF');
   }
 }
