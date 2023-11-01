@@ -18,14 +18,14 @@ export class Bomberman extends Entity {
   speedMultiplier = 1.2;
   animation = animations.moveAnimations[this.direction];
 
-  bombAmount = 5;
+  bombAmount = 1;
   bombStrength = 2;
   availableBombs = this.bombAmount;
   lastBombCell = undefined;
 
 
 
-  constructor(position, time, stageCollisionMap, onBombPlaced) {
+  constructor(position, time, getStageCollisionTileAt, onBombPlaced) {
     super({
       x: (position.x * TILE_SIZE) + HALF_TILE_SIZE,
       y: (position.y * TILE_SIZE) + HALF_TILE_SIZE,
@@ -50,7 +50,7 @@ export class Bomberman extends Entity {
     };
 
     this.startPosition = { ...this.position };
-    this.collisionMap = stageCollisionMap;
+    this.getStageCollisionTileAt = getStageCollisionTileAt;
     this.onBombPlaced = onBombPlaced;
 
     this.changeState(BombermanStateType.IDLE, time);
@@ -64,23 +64,29 @@ export class Bomberman extends Entity {
     this.animationTimer = time.previous + this.animation[this.animationFrame][1] * FRAME_TIME;
   };
 
+  resetVelocity = () => {
+    this.velocity.x = 0;
+    this.velocity.y = 0;
+  };
+
+
   reset(time) {
     this.animationFrame = 0;
     this.direction = Direction.DOWN;
     this.position = { ...this.startPosition };
-    this.velocity = { x: 0, y: 0 };
+    this.resetVelocity();
     this.changeState(BombermanStateType.IDLE, time);
   };
 
-  getCollisionTile(tile) {
+  getCollisionTile(cell) {
     if (
-      this.lastBombCell && tile.row === this.lastBombCell.row
-      && tile.column === this.lastBombCell.column
+      this.lastBombCell && cell.row === this.lastBombCell.row
+      && cell.column === this.lastBombCell.column
     ) {
       return CollisionTile.EMPTY;
     }
 
-    return this.collisionMap[tile.row][tile.column];
+    return this.getStageCollisionTileAt(cell);
   }
 
   getCollisionCoords(direction) {
@@ -151,7 +157,7 @@ export class Bomberman extends Entity {
   }
 
   handleIdleInit = () => {
-    this.velocity = { x: 0, y: 0 };
+    this.resetVelocity();
   };
 
   handleMovingInit = () => {
@@ -159,7 +165,7 @@ export class Bomberman extends Entity {
   };
 
   handleDeathInit = () => {
-    this.velocity = { x: 0, y: 0 };
+    this.resetVelocity();
     this.animation = animations.deathAnimations;
   };
 
@@ -204,7 +210,7 @@ export class Bomberman extends Entity {
       column: Math.floor(this.position.x / TILE_SIZE),
     };
 
-    if (this.collisionMap[playerCell.row][playerCell.column] !== CollisionTile.EMPTY) return;
+    if (this.getStageCollisionTileAt(playerCell) !== CollisionTile.EMPTY) return;
 
     this.availableBombs -= 1;
     this.lastBombCell = playerCell;
@@ -230,7 +236,7 @@ export class Bomberman extends Entity {
 
     if (
       playerCell.row === this.lastBombCell.row && playerCell.column === this.lastBombCell.column
-      || this.collisionMap[this.lastBombCell.row][this.lastBombCell.column] !== CollisionTile.BOMB
+      || this.getStageCollisionTileAt(this.lastBombCell) !== CollisionTile.BOMB
     ) return;
 
     this.lastBombCell = undefined;
