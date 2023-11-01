@@ -5,7 +5,7 @@ export const Direction = {
   RIGHT: 'direction-right',
 };
 
-export const MovementLook = {
+export const MovementLookup = {
   [Direction.LEFT]: { x: -1, y: 0 },
   [Direction.RIGHT]: { x: 1, y: 0 },
   [Direction.UP]: { x: 0, y: -1 },

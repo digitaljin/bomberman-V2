@@ -5,6 +5,7 @@ export const WALK_SPEED = 40;
 export const BombermanStateType = {
   IDLE: 'idle',
   MOVING: 'moving',
+  DEATH: 'death',
 };
 
 export const frames = new Map([
