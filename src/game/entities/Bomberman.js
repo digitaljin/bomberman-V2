@@ -69,6 +69,11 @@ export class Bomberman extends Entity {
     this.velocity.y = 0;
   };
 
+  getCollisionRect = () => ({
+    x: this.position.x - (HALF_TILE_SIZE / 2),
+    y: this.position.y - (HALF_TILE_SIZE / 2),
+    width: HALF_TILE_SIZE, height: HALF_TILE_SIZE,
+  });
 
   reset(time) {
     this.animationFrame = 0;
