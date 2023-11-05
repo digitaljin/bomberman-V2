@@ -1,5 +1,7 @@
 import { BombermanGame } from 'game/BombermanGame.js';
 
 window.addEventListener('load', () => {
-	new BombermanGame().start();
+	window.addEventListener('click', function () {
+		new BombermanGame().start();
+	}, { once: true });
 });

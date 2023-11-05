@@ -2,7 +2,13 @@ import { Entity } from 'engine/Entity.js';
 import { drawFrameOrigin } from 'engine/context.js';
 import * as control from 'engine/inputHandler.js';
 import { CollisionTile } from 'game/constants/LevelData.js';
-import { BombermanStateType, WALK_SPEED, animations, frames } from 'game/constants/bomberman.js';
+import {
+  BombermanPlayerData,
+  BombermanStateType,
+  WALK_SPEED,
+  animations,
+  getBombermanFrames
+} from 'game/constants/bomberman.js';
 import { Control } from 'game/constants/controls.js';
 import { CounterDirectionLookup, Direction, MovementLookup } from 'game/constants/entities.js';
 import { DEBUG, FRAME_TIME, HALF_TILE_SIZE, TILE_SIZE } from 'game/constants/game.js';
@@ -25,10 +31,10 @@ export class Bomberman extends Entity {
 
 
 
-  constructor(position, time, getStageCollisionTileAt, onBombPlaced) {
+  constructor(id, time, getStageCollisionTileAt, onBombPlaced, onEnd) {
     super({
-      x: (position.x * TILE_SIZE) + HALF_TILE_SIZE,
-      y: (position.y * TILE_SIZE) + HALF_TILE_SIZE,
+      x: (BombermanPlayerData[id].column * TILE_SIZE) + HALF_TILE_SIZE,
+      y: (BombermanPlayerData[id].row * TILE_SIZE) + HALF_TILE_SIZE,
     });
 
     this.states = {
@@ -49,9 +55,13 @@ export class Bomberman extends Entity {
       },
     };
 
+    this.id = id;
+    this.color = BombermanPlayerData[id].color;
+    this.frames = getBombermanFrames(this.color);
     this.startPosition = { ...this.position };
     this.getStageCollisionTileAt = getStageCollisionTileAt;
     this.onBombPlaced = onBombPlaced;
+    this.onEnd = onEnd;
 
     this.changeState(BombermanStateType.IDLE, time);
   }
@@ -74,14 +84,6 @@ export class Bomberman extends Entity {
     y: this.position.y - (HALF_TILE_SIZE / 2),
     width: HALF_TILE_SIZE, height: HALF_TILE_SIZE,
   });
-
-  reset(time) {
-    this.animationFrame = 0;
-    this.direction = Direction.DOWN;
-    this.position = { ...this.startPosition };
-    this.resetVelocity();
-    this.changeState(BombermanStateType.IDLE, time);
-  };
 
   getCollisionTile(cell) {
     if (
@@ -111,11 +113,27 @@ export class Bomberman extends Entity {
           { row: Math.floor((this.position.y - 8) / TILE_SIZE), column: Math.floor((this.position.x + 8) / TILE_SIZE) },
           { row: Math.floor((this.position.y + 7) / TILE_SIZE), column: Math.floor((this.position.x + 8) / TILE_SIZE) },
         ];
+      default:
       case Direction.DOWN:
         return [
           { row: Math.floor((this.position.y + 8) / TILE_SIZE), column: Math.floor((this.position.x - 8) / TILE_SIZE) },
           { row: Math.floor((this.position.y + 8) / TILE_SIZE), column: Math.floor((this.position.x + 7) / TILE_SIZE) },
         ];
+    }
+  }
+
+  applyPowerup(type) {
+    switch (type) {
+      case CollisionTile.POWERUP_FLAME:
+        this.bombStrength += 1;
+        break;
+      case CollisionTile.POWERUP_BOMB:
+        this.bombAmount += 1;
+        this.availableBombs += 1;
+        break;
+      case CollisionTile.POWERUP_SPEED:
+        this.speedMultiplier += 0.4;
+        break;
     }
   }
 
@@ -171,7 +189,7 @@ export class Bomberman extends Entity {
 
   handleDeathInit = () => {
     this.resetVelocity();
-    this.animation = animations.deathAnimations;
+    this.animation = animations.deathAnimation;
   };
 
   handleGeneralState = (time) => {
@@ -198,8 +216,11 @@ export class Bomberman extends Entity {
     this.changeState(BombermanStateType.IDLE, time);
   };
 
-  handleDeathState = (time) => {
-    if (this.animationFrame >= animations.deathAnimations.length - 1) this.reset(time);
+  handleDeathState = () => {
+    if (animations.deathAnimation[this.animationFrame][1] !== -1) return;
+
+    this.onEnd(this.id);
+    // if (this.animationFrame >= animations.deathAnimations.length - 1) this.reset(time);
   };
 
 
@@ -275,7 +296,7 @@ export class Bomberman extends Entity {
 
   draw(context, camera) {
     const [frameKey] = this.animation[this.animationFrame];
-    const frame = frames.get(frameKey);
+    const frame = this.frames.get(frameKey);
 
     drawFrameOrigin(
       context, this.image, frame,
